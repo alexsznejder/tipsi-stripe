@@ -132,7 +132,7 @@ class Stripe {
     })()
   )
 
-  paymentRequestWithCardForm = (options = {}) => {
+  paymentRequestWithCardForm = (options = {}, card = {}) => {
     checkInit(this)
     checkArgs(
       types.paymentRequestWithCardFormOptionsPropTypes,
@@ -141,6 +141,7 @@ class Stripe {
     return StripeModule.paymentRequestWithCardForm({
       ...options,
       theme: processTheme(options.theme),
+      ...card
     })
   }
 

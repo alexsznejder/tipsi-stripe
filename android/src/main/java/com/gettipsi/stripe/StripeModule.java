@@ -26,6 +26,8 @@ import com.stripe.android.TokenCallback;
 import com.stripe.android.model.Source;
 import com.stripe.android.model.SourceParams;
 import com.stripe.android.model.Token;
+import com.stripe.android.model.Card;
+import com.facebook.react.bridge.WritableMap;
 
 import static com.gettipsi.stripe.Errors.*;
 import static com.gettipsi.stripe.util.Converters.convertSourceToWritableMap;
@@ -197,14 +199,34 @@ public class StripeModule extends ReactContextBaseJavaModule {
       ArgCheck.nonNull(currentActivity);
       ArgCheck.notEmptyString(mPublicKey);
 
-      final AddCardDialogFragment cardDialog = AddCardDialogFragment.newInstance(
-        mPublicKey,
-        getErrorCode(mErrorCodes, "cancelled"),
-        getDescription(mErrorCodes, "cancelled"),
-        params.hasKey("createCardSource") && params.getBoolean("createCardSource")
+      final Card card = new Card(
+          params.getString("cardNumber"),
+          params.getInt("expMonth"),
+          params.getInt("expYear"),
+          params.getString("securityCode")
       );
-      cardDialog.setPromise(promise);
-      cardDialog.show(currentActivity.getFragmentManager(), "AddNewCard");
+
+      SourceParams cardSourceParams = SourceParams.createCardParams(card);
+      StripeModule.getInstance().getStripe().createSource(
+        cardSourceParams,
+        new SourceCallback() {
+          @Override
+          public void onSuccess(Source source) {
+            // Normalize data with iOS SDK
+            final WritableMap sourceMap = Converters.convertSourceToWritableMap(source);
+            sourceMap.putMap("card", Converters.mapToWritableMap(source.getSourceTypeData()));
+            sourceMap.putNull("sourceTypeData");  
+            if (promise != null) {
+              promise.resolve(sourceMap);
+            }
+          }  
+          @Override
+            public void onError(Exception error) {
+                promise.reject(toErrorCode(error));
+            }
+        }
+      );
+
     } catch (Exception e) {
       promise.reject(toErrorCode(e), e.getMessage());
     }
@@ -274,6 +296,14 @@ public class StripeModule extends ReactContextBaseJavaModule {
             options.getString("returnURL"),
             options.getString("card"));
         break;
+        case "p24":
+            sourceParams = SourceParams.createP24Params(
+                options.getInt("amount"),
+                options.getString("currency"),
+                getStringOrNull(options, "name"),
+                getStringOrNull(options, "email"),
+                options.getString("returnURL"));
+        break;
 			case "card":
 				sourceParams = SourceParams.createCardParams(Converters.createCard(options));
 		  	break;
@@ -297,13 +327,13 @@ public class StripeModule extends ReactContextBaseJavaModule {
               getDescription(mErrorCodes, "activityUnavailable")
             );
           } else {
-            mCreateSourcePromise = promise;
-            mCreatedSource = source;
-            String redirectUrl = source.getRedirect().getUrl();
-            Intent browserIntent = new Intent(currentActivity, OpenBrowserActivity.class)
-                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                .putExtra(OpenBrowserActivity.EXTRA_URL, redirectUrl);
-            currentActivity.startActivity(browserIntent);
+            // mCreateSourcePromise = promise;
+            // mCreatedSource = source;
+            // String redirectUrl = source.getRedirect().getUrl();
+            // Intent browserIntent = new Intent(currentActivity, OpenBrowserActivity.class)
+            //     .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            //     .putExtra(OpenBrowserActivity.EXTRA_URL, redirectUrl);
+            // currentActivity.startActivity(browserIntent);
           }
         } else {
           promise.resolve(convertSourceToWritableMap(source));
